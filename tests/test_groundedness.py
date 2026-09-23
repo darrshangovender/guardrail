@@ -72,3 +72,18 @@ def test_sentence_initial_common_words_not_flagged_as_entities():
 def test_is_output_stage_only():
     assert DET.supports(Stage.OUTPUT)
     assert not DET.supports(Stage.INPUT)
+
+
+def test_trailing_zero_restatement_is_grounded():
+    """'3.50' and '3.5' are the same figure. The source side was canonicalised
+    but the answer side was not, so an answer that faithfully restated a source
+    number with a trailing zero was flagged as a fabricated figure — HIGH
+    severity, which BALANCED turns into a block of a correct answer."""
+    src = "Growth was 3.5% for the quarter."
+    assert DET.detect("Growth was 3.50%.", {"source": src}) == []
+    assert DET.detect("Growth was 3.5%.", {"source": "Growth was 3.50% for the quarter."}) == []
+
+
+def test_canonicalisation_does_not_hide_a_real_fabrication():
+    out = DET.detect("Growth was 3.6%.", {"source": "Growth was 3.5% for the quarter."})
+    assert any(f.meta["kind"] == "figure" for f in out)
