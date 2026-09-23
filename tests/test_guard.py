@@ -3,10 +3,9 @@ import pytest
 from guardrail import (
     AUDIT,
     BALANCED,
-    STRICT,
     Action,
-    Guard,
     GroundednessDetector,
+    Guard,
     InjectionDetector,
     PIIDetector,
     Policy,
@@ -144,3 +143,23 @@ def test_full_pipeline_input_then_output():
 
     bad = guard.check_output("Latency fell to 7ms.", source=source)
     assert not bad.allowed                       # hallucinated figure caught
+
+
+def test_schema_repair_does_not_revert_pii_redaction():
+    """Chained redactors must compose. SchemaDetector.redact used to return a
+    payload rebuilt from the *original* text, silently undoing the PII redaction
+    that ran before it — the guard reported REDACT and handed back the email."""
+    g = Guard([PIIDetector(), SchemaDetector()], policy=BALANCED)
+    r = g.check_output('```json\n{"contact": "darrshan@example.com"}\n```')
+    assert r.action is Action.REDACT
+    assert "darrshan@example.com" not in r.text
+    assert "[REDACTED:email]" in r.text
+
+
+def test_pii_redaction_survives_a_schema_first_detector_order():
+    """Same leak, opposite order: schema rewrites the text first, so the PII
+    spans recorded against the original no longer line up."""
+    g = Guard([SchemaDetector(), PIIDetector()], policy=BALANCED)
+    r = g.check_output('```json\n{"contact": "darrshan@example.com"}\n```')
+    assert r.action is Action.REDACT
+    assert "darrshan@example.com" not in r.text
