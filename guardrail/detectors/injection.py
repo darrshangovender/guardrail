@@ -25,8 +25,8 @@ from guardrail.types import Finding, Severity, Stage
 # (pattern, family, severity, confidence)
 _PATTERNS: list[tuple[str, str, Severity, float]] = [
     # -- instruction override ------------------------------------------------
-    (r"\bignore\s+(?:all\s+)?(?:the\s+)?(?:previous|prior|above|earlier|preceding)\s+"
-     r"(?:instructions?|prompts?|rules?|directions?)", "override", Severity.HIGH, 0.95),
+    ((r"\bignore\s+(?:all\s+)?(?:the\s+)?(?:previous|prior|above|earlier|preceding)\s+"
+      r"(?:instructions?|prompts?|rules?|directions?)"), "override", Severity.HIGH, 0.95),
     (r"\bdisregard\s+(?:all\s+)?(?:the\s+)?(?:previous|prior|above|earlier)\b",
      "override", Severity.HIGH, 0.9),
     (r"\bforget\s+(?:everything|all)\s+(?:you|above|before|previously)\b",
@@ -48,8 +48,8 @@ _PATTERNS: list[tuple[str, str, Severity, float]] = [
      "role_hijack", Severity.MEDIUM, 0.6),
 
     # -- exfiltration --------------------------------------------------------
-    (r"\b(?:repeat|print|show|reveal|output|display|tell\s+me)\s+(?:me\s+)?"
-     r"(?:your|the)\s+(?:system\s+)?(?:prompt|instructions?|rules?)\b",
+    ((r"\b(?:repeat|print|show|reveal|output|display|tell\s+me)\s+(?:me\s+)?"
+      r"(?:your|the)\s+(?:system\s+)?(?:prompt|instructions?|rules?)\b"),
      "exfiltration", Severity.HIGH, 0.9),
     (r"\bwhat\s+(?:were|are)\s+your\s+(?:original\s+)?(?:instructions?|system\s+prompt)\b",
      "exfiltration", Severity.MEDIUM, 0.8),
@@ -65,7 +65,7 @@ _COMPILED = [(re.compile(p, re.IGNORECASE), fam, sev, conf) for p, fam, sev, con
 
 #: Zero-width and bidi control characters used to smuggle hidden instructions
 #: past human review. Cheap to check, and a strong signal when present.
-_INVISIBLE = re.compile(r"[​-‏‪-‮⁠-⁤﻿]")
+_INVISIBLE = re.compile(r"[\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]")
 
 
 class InjectionDetector(Detector):
