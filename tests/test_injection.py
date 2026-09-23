@@ -67,13 +67,13 @@ def test_finding_carries_span_and_family():
 
 
 def test_detects_invisible_characters():
-    hidden = "Normal text​with zero width‮ chars"
+    hidden = "Normal text\u200bwith zero width\u202e chars"
     findings = InjectionDetector(check_invisible=True).detect(hidden)
     assert any(f.meta.get("family") == "invisible" for f in findings)
 
 
 def test_invisible_check_can_be_disabled():
-    hidden = "Normal​text"
+    hidden = "Normal\u200btext"
     assert InjectionDetector(check_invisible=False).detect(hidden) == []
 
 
