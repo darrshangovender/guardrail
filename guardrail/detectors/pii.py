@@ -176,9 +176,7 @@ def _looks_like_phone(token: str) -> bool:
         return False
     # A run of 13+ bare digits with no separators is far more likely an
     # account/reference number than a phone number.
-    if digits >= 13 and stripped.isdigit():
-        return False
-    return True
+    return not (digits >= 13 and stripped.isdigit())
 
 
 def _spans(findings: list[Finding]) -> list[tuple[int, int]]:
