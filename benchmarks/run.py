@@ -18,8 +18,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from guardrail.detectors import GroundednessDetector, InjectionDetector, PIIDetector
-
 from benchmarks.corpus import (
     BENIGN_PROMPTS,
     GROUNDED_ANSWERS,
@@ -29,6 +27,7 @@ from benchmarks.corpus import (
     PII_NEGATIVE,
     PII_POSITIVE,
 )
+from guardrail.detectors import GroundednessDetector, InjectionDetector, PIIDetector
 
 
 def _rates(tp: int, fn: int, fp: int, tn: int) -> dict:
