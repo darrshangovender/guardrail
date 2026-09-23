@@ -29,10 +29,7 @@ _PROPER = re.compile(r"\b[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})*\b")
 
 #: Sentence-initial capitals and common words are not evidence of a proper noun.
 _COMMON = frozenset(
-    "The This That These Those There Here When Where What Which While Although "
-    "However Therefore Because Since After Before During Their They Then Thus "
-    "Note Yes No If And But For With From Into Over Under Also Only Some Most "
-    "Based According Given Using".split()
+    ["The", "This", "That", "These", "Those", "There", "Here", "When", "Where", "What", "Which", "While", "Although", "However", "Therefore", "Because", "Since", "After", "Before", "During", "Their", "They", "Then", "Thus", "Note", "Yes", "No", "If", "And", "But", "For", "With", "From", "Into", "Over", "Under", "Also", "Only", "Some", "Most", "Based", "According", "Given", "Using"]
 )
 
 
@@ -43,6 +40,17 @@ def _norm(text: str) -> str:
 def _digits(token: str) -> str:
     """Digit signature of a numeric token: '$1,200' and '1200' both -> '1200'."""
     return re.sub(r"[^\d.]", "", token).rstrip(".")
+
+
+def _canonical(digits: str) -> str:
+    """Canonical form of a digit signature, so equal values compare equal.
+
+    Trailing zeros after a decimal point are formatting, not a difference in
+    value: '3.50' and '3.5' are the same figure. Applied to *both* sides of the
+    comparison — normalising only the source made an answer that restates a
+    source figure with a trailing zero look fabricated.
+    """
+    return digits.rstrip("0").rstrip(".") if "." in digits else digits
 
 
 def _source_numbers(source: str) -> set[str]:
@@ -58,9 +66,13 @@ def _source_numbers(source: str) -> set[str]:
         d = _digits(token)
         if d:
             out.add(d)
-            # A figure written "45ms" should also satisfy a claim of "45".
-            out.add(d.rstrip("0").rstrip(".") if "." in d else d)
+            out.add(_canonical(d))
     return out
+
+
+def _grounded(digits: str, known: set[str]) -> bool:
+    """True when ``digits`` names a value the source actually states."""
+    return digits in known or _canonical(digits) in known
 
 
 def _has_unit(token: str) -> bool:
@@ -129,7 +141,7 @@ class GroundednessDetector(Detector):
             for m in _CURRENCY.finditer(text):
                 currency_spans.append((m.start(), m.end()))
                 digits = _digits(m.group(0))
-                if digits and digits not in known_numbers:
+                if digits and not _grounded(digits, known_numbers):
                     flag("currency amount", m, Severity.HIGH, 0.85)
 
         if self.check_numbers:
@@ -145,7 +157,7 @@ class GroundednessDetector(Detector):
                 # same digit with a unit ("7ms") is.
                 if digits.isdigit() and len(digits) <= 1 and not _has_unit(token):
                     continue
-                if digits not in known_numbers:
+                if not _grounded(digits, known_numbers):
                     flag("figure", m, Severity.HIGH, 0.8)
 
         if self.check_quotes:
