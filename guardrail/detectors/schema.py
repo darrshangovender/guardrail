@@ -119,10 +119,8 @@ class SchemaDetector(Detector):
         self.required_keys = required_keys
         self.expect = expect
         self.attempt_repair = attempt_repair
-        self._repaired: str | None = None
 
     def detect(self, text: str, context: dict | None = None) -> list[Finding]:
-        self._repaired = None
         parsed, used_repair = self._parse(text)
 
         if parsed is None:
@@ -168,8 +166,46 @@ class SchemaDetector(Detector):
         return findings
 
     def redact(self, text: str, findings: list[Finding]) -> str:
-        """Return the repaired JSON when repair succeeded, else the original."""
-        return self._repaired if self._repaired is not None else text
+        """Return the repaired JSON when repair succeeds, else ``text`` unchanged.
+
+        The repair is re-derived from the ``text`` argument rather than from state
+        stashed during ``detect``. The Guard chains redactors, so by the time this
+        runs another detector may already have transformed the text — returning a
+        payload rebuilt from the *original* input would silently undo that, which
+        is how a PII redaction ends up reverted on its way out the door.
+        """
+        repaired = self._repair_text(text)
+        return repaired if repaired is not None else text
+
+    def _repair_text(self, text: str) -> str | None:
+        """Return a parseable JSON payload extracted/repaired out of ``text``.
+
+        ``None`` means either "already valid, nothing to do" or "unrepairable" —
+        both of which leave the text untouched, so callers need not distinguish.
+        """
+        try:
+            json.loads(text)
+            return None  # already valid JSON; nothing to repair
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+        extracted = extract_json(text)
+        if extracted:
+            try:
+                json.loads(extracted)
+                return extracted
+            except json.JSONDecodeError:
+                pass
+
+        if self.attempt_repair:
+            repaired = repair_json(text)
+            try:
+                json.loads(repaired)
+                return repaired
+            except json.JSONDecodeError:
+                pass
+
+        return None
 
     def _parse(self, text: str) -> tuple[Any | None, bool]:
         try:
@@ -177,23 +213,9 @@ class SchemaDetector(Detector):
         except (json.JSONDecodeError, TypeError):
             pass
 
-        extracted = extract_json(text)
-        if extracted:
-            try:
-                parsed = json.loads(extracted)
-                self._repaired = extracted
-                return parsed, True
-            except json.JSONDecodeError:
-                pass
-
-        if self.attempt_repair:
-            repaired = repair_json(text)
-            try:
-                parsed = json.loads(repaired)
-                self._repaired = repaired
-                return parsed, True
-            except json.JSONDecodeError:
-                pass
+        repaired = self._repair_text(text)
+        if repaired is not None:
+            return json.loads(repaired), True
 
         return None, False
 
