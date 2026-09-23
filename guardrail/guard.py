@@ -57,8 +57,19 @@ class Guard:
             # follows the detector list so behaviour is predictable.
             for det in active:
                 mine = [f for f in findings if f.detector == det.name]
-                if mine:
-                    out_text = det.redact(out_text, mine)
+                if not mine:
+                    continue
+                if out_text != text:
+                    # An earlier detector already rewrote the text, so the spans
+                    # recorded against the original no longer line up — redacting
+                    # on them would blank the wrong characters and could leave the
+                    # sensitive value intact. Re-detect against what we actually
+                    # hold. The reported findings stay the original ones: they
+                    # describe what was in the input, which is what callers log.
+                    mine = det.detect(out_text, context)
+                    if not mine:
+                        continue
+                out_text = det.redact(out_text, mine)
 
             # If nothing actually changed, there was nothing to redact — a
             # REDACT decision with no transformation is really a FLAG, and
